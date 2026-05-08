@@ -12,7 +12,7 @@ There is **no application code** in this repo yet — only Chinese-language desi
 
 ## Repo contents
 
-- `HLD_海信TV体育AI助手_高阶设计.md` — High-level design. Architecture, data-layer split rationale (Postgres as System of Record + AI Search as derived semantic index), ingest pipeline, Agent tool set, latency/cost/ops targets, review checklist.
+- `HLD_海信TV体育AI助手.md` — High-level design. Architecture, data-layer split rationale (Postgres as System of Record + AI Search as derived semantic index), ingest pipeline, Agent tool set, latency/cost/ops targets, review checklist.
 - `LLD_海信TV体育AI助手_详细设计.md` — Low-level design. Production-ready Postgres DDL, Azure AI Search index JSON, ingest pipeline pseudocode, entity-linker logic, Agent tool JSON schemas, API contract, Redis key conventions, observability fields, test plan.
 - `1.2026-04-14.json` — One-day EPG sample from the upstream feed (DR1 Denmark: 33 programs / 36 listings, multi-language titles DA/EN/SV/NO, no sports items). This is the shape the daily ingest pipeline must consume. Used as the ground-truth schema reference when designing the data layer.
 
