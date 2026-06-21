@@ -1,0 +1,40 @@
+# Agent Optimizer + evaluation config for the Hisense TV Sports AI Assistant.
+# Run:  azd ai agent optimize        (uses .agent_configs/baseline + this file)
+# Docs: foundry-agent/agent-optimizer skill.
+#
+# agent.name / agent.version are resolved from azd context after the first
+# deploy. Update them (or let azd fill them) before running optimize/eval.
+
+name: hisense-tv-assistant-opt
+agent:
+  name: hisense-tv-assistant
+  kind: hosted
+  version: "8"
+  model: gpt-4.1-mini
+  config: .agent_configs/baseline/metadata.yaml
+
+# Seed eval dataset (relative to this file in src/).
+dataset_file: ../data/eval/seed_dataset.jsonl
+
+# Built-in evaluators. tool_call_accuracy is included because the agent is
+# tool-driven; relevance/task_adherence/intent_resolution cover answer quality
+# and router correctness.
+evaluators:
+  - builtin.relevance
+  - builtin.task_adherence
+  - builtin.intent_resolution
+  - builtin.tool_call_accuracy
+
+options:
+  eval_model: gpt-4.1
+  # Bounded sample count keeps the POC verification run fast/cheap; raise or
+  # remove for a full evaluation pass over the seed dataset.
+  max_samples: 5
+  # Optimizer model + target candidate must be a DEPLOYED model whose name is in
+  # the optimizer allowlist (GPT-5 / GPT-5.1 / GPT-5.2 / GPT-5.4 / GPT-5.5 /
+  # DeepSeek-V4-Pro / DeepSeek-V-3.2). Deploy one before running optimize.
+  optimization_model: GPT-5.4
+  max_iterations: 4
+  optimization_config:
+    model:
+      - GPT-5.4

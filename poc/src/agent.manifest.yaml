@@ -1,0 +1,49 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/microsoft/AgentSchema/refs/heads/main/schemas/v1.0/AgentManifest.yaml
+name: hisense-tv-assistant
+displayName: "Hisense TV Sports AI Assistant (LangGraph, Responses)"
+description: >
+  LangGraph hosted agent for the Hisense TV remote-key sports assistant.
+  Demonstrates Microsoft Foundry as a production agent platform: Foundry IQ
+  knowledge retrieval over the EPG/titles program library, Web IQ for
+  live web/news/image grounding, Agent Optimizer-ready instruction/model
+  config, and GenAI OpenTelemetry tracing into Application Insights for
+  evaluation & monitoring.
+metadata:
+  tags:
+    - AI Agent Hosting
+    - Responses Protocol
+    - LangGraph
+    - LangChain
+    - Foundry IQ
+    - Web IQ
+    - Agent Optimizer
+    - Observability
+    - Python
+template:
+  name: hisense-tv-assistant
+  kind: hosted
+  protocols:
+    - protocol: responses
+      version: 1.0.0
+  environment_variables:
+    # FOUNDRY_PROJECT_ENDPOINT and APPLICATIONINSIGHTS_CONNECTION_STRING are
+    # injected by the platform (hosted) / translated by azd (local) — do NOT
+    # declare them here.
+    - name: AZURE_AI_MODEL_DEPLOYMENT_NAME
+      value: "{{AZURE_AI_MODEL_DEPLOYMENT_NAME}}"
+    - name: FOUNDRY_IQ_ENDPOINT
+      value: "{{FOUNDRY_IQ_ENDPOINT}}"
+    - name: FOUNDRY_IQ_KNOWLEDGE_BASE
+      value: "{{FOUNDRY_IQ_KNOWLEDGE_BASE}}"
+    - name: WEBIQ_API_KEY
+      value: "{{WEBIQ_API_KEY}}"
+    - name: WEBIQ_BASE_URL
+      value: "{{WEBIQ_BASE_URL}}"
+    - name: OTEL_AUTO_CONFIGURE_AZURE_MONITOR
+      value: "true"
+    - name: AZURE_TRACING_GEN_AI_CONTENT_RECORDING_ENABLED
+      value: "true"
+resources:
+  - kind: model
+    id: gpt-4.1-mini
+    name: AZURE_AI_MODEL_DEPLOYMENT_NAME
