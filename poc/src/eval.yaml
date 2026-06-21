@@ -9,7 +9,7 @@ name: hisense-tv-assistant-opt
 agent:
   name: hisense-tv-assistant
   kind: hosted
-  version: "1"
+  version: "8"
   model: gpt-4.1-mini
   config: .agent_configs/baseline/metadata.yaml
 

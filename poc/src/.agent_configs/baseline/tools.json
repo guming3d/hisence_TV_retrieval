@@ -1,121 +1,133 @@
-{
-  "tools": [
-    {
-      "type": "function",
-      "function": {
-        "name": "foundry_iq_search",
-        "description": "检索生产节目库进行内容推荐 / 语义搜索（Foundry IQ 知识库）。用于'推荐一部…''那部讲…的节目是什么''有没有关于…的纪录片'等内容类问题。",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "query": {
-              "type": "string",
-              "description": "节目内容/推荐类自然语言查询，例如 '关于丹麦收养的纪录片'。"
-            },
-            "doc_type": {
-              "type": "string",
-              "enum": ["movie", "series", "episode"],
-              "description": "可选过滤：movie / series / episode。不确定时留空。"
-            },
-            "top": {
-              "type": "integer",
-              "description": "返回条数（1-8）。"
-            }
+[
+  {
+    "type": "function",
+    "function": {
+      "name": "foundry_iq_search",
+      "description": "检索生产节目库进行内容推荐 / 语义搜索（Foundry IQ 知识库）。用于'推荐一部…''那部讲…的节目是什么''有没有关于…的纪录片'等内容类问题。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "节目内容/推荐类自然语言查询，例如 '关于丹麦收养的纪录片'。"
           },
-          "required": ["query"]
-        }
-      }
-    },
-    {
-      "type": "function",
-      "function": {
-        "name": "webiq_search",
-        "description": "联网搜索最新的网页 / 新闻 / 图片（Microsoft Web IQ）。用于开放域、强时效性的问题：最新比赛新闻、'昨晚发生了什么'、球员近况、需要配图的查询。",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "query": {
-              "type": "string",
-              "description": "自然语言搜索词，例如 '哈兰德 最新进球 新闻'。"
-            },
-            "vertical": {
-              "type": "string",
-              "enum": ["web", "news", "images"],
-              "description": "搜索类型：web=网页，news=新闻，images=图片。最新动态/赛果用 news，要图片用 images。"
-            },
-            "max_results": {
-              "type": "integer",
-              "description": "返回结果条数（1-10）。"
-            }
+          "doc_type": {
+            "type": "string",
+            "enum": [
+              "movie",
+              "series",
+              "episode"
+            ],
+            "description": "可选过滤：movie / series / episode。不确定时留空。"
           },
-          "required": ["query"]
-        }
-      }
-    },
-    {
-      "type": "function",
-      "function": {
-        "name": "query_schedule",
-        "description": "查询电视节目单 EPG（几点播、今晚有什么、直播还是重播）。返回频道、开始/结束时间、是否直播/重播及关联赛事外部 ID。",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "title": {
-              "type": "string",
-              "description": "节目名关键字，可选。"
-            },
-            "channel": {
-              "type": "string",
-              "description": "频道名关键字，可选。"
-            },
-            "live_only": {
-              "type": "boolean",
-              "description": "仅返回直播节目。"
-            },
-            "limit": {
-              "type": "integer",
-              "description": "返回条数（1-10）。"
-            }
+          "top": {
+            "type": "integer",
+            "description": "返回条数（1-8）。"
           }
-        }
+        },
+        "required": [
+          "query"
+        ]
       }
-    },
-    {
-      "type": "function",
-      "function": {
-        "name": "get_live_scores",
-        "description": "获取实时/最新比分（现在比分、昨晚谁赢了）。需要最新新闻或图片时改用 webiq_search。",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "match_external_id": {
-              "type": "string",
-              "description": "赛事外部 ID（来自 query_schedule），可选。"
-            },
-            "team": {
-              "type": "string",
-              "description": "球队名关键字，可选。"
-            }
-          }
-        }
-      }
-    },
-    {
-      "type": "function",
-      "function": {
-        "name": "tune_to_channel",
-        "description": "切换电视到指定频道（用户确认观看后调用）。",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "channel": {
-              "type": "string",
-              "description": "要切换到的频道名，例如 'DR1'。"
-            }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "webiq_search",
+      "description": "联网搜索最新的网页 / 新闻 / 图片（Microsoft Web IQ）。用于开放域、强时效性的问题：最新比赛新闻、'昨晚发生了什么'、球员近况、需要配图的查询。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "自然语言搜索词，例如 '哈兰德 最新进球 新闻'。"
           },
-          "required": ["channel"]
+          "vertical": {
+            "type": "string",
+            "enum": [
+              "web",
+              "news",
+              "images"
+            ],
+            "description": "搜索类型：web=网页，news=新闻，images=图片。最新动态/赛果用 news，要图片用 images。"
+          },
+          "max_results": {
+            "type": "integer",
+            "description": "返回结果条数（1-10）。"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "query_schedule",
+      "description": "查询电视节目单 EPG（几点播、今晚有什么、直播还是重播）。返回频道、开始/结束时间、是否直播/重播及关联赛事外部 ID。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "节目名关键字，可选。"
+          },
+          "channel": {
+            "type": "string",
+            "description": "频道名关键字，可选。"
+          },
+          "live_only": {
+            "type": "boolean",
+            "description": "仅返回直播节目。"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "返回条数（1-10）。"
+          }
         }
       }
     }
-  ]
-}
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_live_scores",
+      "description": "获取实时/最新比分（现在比分、昨晚谁赢了）。需要最新新闻或图片时改用 webiq_search。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "match_external_id": {
+            "type": "string",
+            "description": "赛事外部 ID（来自 query_schedule），可选。"
+          },
+          "team": {
+            "type": "string",
+            "description": "球队名关键字，可选。"
+          }
+        }
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "tune_to_channel",
+      "description": "切换电视到指定频道（用户确认观看后调用）。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "channel": {
+            "type": "string",
+            "description": "要切换到的频道名，例如 'DR1'。"
+          }
+        },
+        "required": [
+          "channel"
+        ]
+      }
+    }
+  }
+]

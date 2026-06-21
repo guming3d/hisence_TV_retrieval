@@ -54,9 +54,26 @@ def build_model() -> Any:
 
 
 def build_graph() -> Any:
-    """Assemble the tool-calling LangGraph agent (model + bound scenario tools)."""
+    """Assemble the tool-calling LangGraph agent (model + bound scenario tools).
+
+    When an Agent Optimizer config is active (baseline or a selected candidate),
+    its optimized **tool definitions** are applied to the live ``@tool`` objects
+    via ``OptimizationConfig.apply_tool_descriptions`` — this patches each tool's
+    ``.description`` (and parameter descriptions) in place by name, so a candidate
+    that rewrites tool docs takes effect without any code change. The optimized
+    **instruction** is supplied through ``cfg.instruction``.
+    """
     from langchain.agents import create_agent
 
     cfg = get_agent_config()
     model = build_model()
-    return create_agent(model, tools=ALL_TOOLS, system_prompt=cfg.instruction)
+
+    tools = list(ALL_TOOLS)
+    opt_config = cfg.extra.get("raw_config")
+    if opt_config is not None:
+        try:
+            opt_config.apply_tool_descriptions(tools)
+        except Exception as exc:  # noqa: BLE001 — tool patching is best-effort
+            print(f"[optimizer] apply_tool_descriptions skipped: {exc}")
+
+    return create_agent(model, tools=tools, system_prompt=cfg.instruction)
