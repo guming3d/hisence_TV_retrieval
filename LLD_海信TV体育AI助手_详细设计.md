@@ -44,7 +44,7 @@
 - **Azure Event Hubs** (Kafka-compatible endpoint) — simpleTV / VOD 周度消费通道
 - Azure Functions (Python 3.11, isolated) — 同时承载 blob-triggered (IMDB) 与 Event Hubs-triggered (simpleTV / VOD) Worker
 - Embeddings: `text-embedding-3-large` via Azure OpenAI
-- Agent: Azure AI Foundry Agent Service,`gpt-5-mini` 主模型,`gpt-4o` 用于 tvSeries 系列摘要兜底
+- Agent: Azure AI Foundry Agent Service,`GPT-5.4-mini` 为默认模型 (EPG 查询、路由决策、简单推荐);`GPT-5.4` 用于复杂推理场景 (多工具级联、多轮规划、tvSeries 系列剧情摘要)
 
 ---
 
@@ -858,7 +858,7 @@ filter: "doc_type in ('movie','series')"   -- 不过滤 vod_playable
 - 写入通过 `mergeOrUpload`,只在 `content_hash` 变化或 series rebuild 触发时推送
 - 批量大小: 1000 文档/请求,错误重试指数退避 (max 3)
 - 嵌入失败的文档不写入向量字段,记录到死信队列
-- **doc_type='series' 的写入**: 需先聚合该 series 下所有 episode title 的 description_long,调用 `gpt-5-mini` 摘要到 ~500 字符,再作为 series_doc 的 `description_long_*` 字段
+- **doc_type='series' 的写入**: 需先聚合该 series 下所有 episode title 的 description_long,调用 `GPT-5.4` 摘要到 ~500 字符 (tvSeries 剧情浓缩属于"复杂推理"档,GPT-5.4-mini 易丢失跨季情节线索),再作为 series_doc 的 `description_long_*` 字段
 - **doc_type='episode'** 为可选;默认不开启 (节省 50%+ 文档量), 仅在"单集剧情/演员"类查询超过黄金集 10% 时启用
 
 ---
@@ -1217,7 +1217,7 @@ def should_rebuild_series_doc(series_id: int) -> bool:
 
 rebuild 动作:
 1. 聚合该 `series_id` 下所有 `episode` title 的 `description_long_*`
-2. 调 `gpt-5-mini` 摘要到 ~500 字符 series-level 剧情
+2. 调 `GPT-5.4` 摘要到 ~500 字符 series-level 剧情 (复杂推理档;GPT-5.4-mini 会丢失跨季情节)
 3. 按 §4.6 series 模板拼接嵌入输入,计算 `content_hash`
 4. 写入 `titles` where `kind='series'` (若无则新建),`rag_doc_version += 1`
 5. `mergeOrUpload` 到 AI Search (`doc_id = f"series:{series_id}"`, `doc_type='series'`)
@@ -1288,7 +1288,7 @@ teams: {t1, t2}
 [SERIES] {series_primary_title}
 seasons: {N}
 episodes_total: {M}
-summary: {gpt-5-mini 产出的 ~500 字系列剧情摘要}
+summary: {GPT-5.4 产出的 ~500 字系列剧情摘要}
 genres: {g1, g2, ...}
 cast: {a1, a2, ...}
 imdb_rating: {imdb_rating}
@@ -1578,6 +1578,60 @@ Listing (sports)
 输出 JSON: { "speak": <给 TTS 的自然语言>, "card": <结构化卡片>, "actions": [...] }
 ```
 
+### 6.7 模型路由决策 (GPT-5.4-mini 默认 / GPT-5.4 复杂推理)
+
+Foundry Agent 通过 deployment name 挂两个部署:
+```
+foundry_deployments:
+  default:       "gpt-5-4-mini"    # Azure OpenAI 里的 deployment 名
+  complex:       "gpt-5-4"
+  series_writer: "gpt-5-4"         # 摄入侧 tvSeries 摘要专用
+```
+
+**在线路径路由逻辑** (Agent planner 阶段):
+
+```python
+def select_model(user_query: str, context: dict) -> str:
+    # 默认: GPT-5.4-mini
+    model = "default"
+
+    # 1. 第一轮 planner (gpt-5-4-mini) 输出工具调用方案 + 置信度
+    plan = planner.plan_once(user_query, model="default")
+
+    # 2. 升级触发条件 (任一成立即切 complex)
+    if plan.confidence < 0.7:
+        model = "complex"
+    elif len(plan.tool_calls) >= 2:           # 多工具级联
+        model = "complex"
+    elif context.get("is_multi_turn") and context.get("user_pushback"):
+        model = "complex"                      # v2+ 场景
+    elif plan.intent in (
+        "cross_series_compare",                # "比较这三部悬疑剧"
+        "story_arc_reasoning",                 # "下一季可能怎么发展"
+    ):
+        model = "complex"
+
+    return model
+```
+
+**工具白名单 by 档位** (避免 mini 误用重工具):
+
+| 档位 | 可用工具 | 说明 |
+|---|---|---|
+| default (GPT-5.4-mini) | 全部 5 个工具 | mini 足以完成单工具命中 |
+| complex (GPT-5.4) | 全部 5 个工具 + 工具链规划 | 超过 3 步仍受 §5.3 工具调用深度上限约束 |
+
+**摄入侧 tvSeries 摘要路由**:
+- 固定使用 `series_writer` deployment (GPT-5.4) — 无论查询量多大,此路径由摄入批次频率决定 (每周 ≪ 在线查询量),成本可控且质量关键
+- prompt 模板参见 LLD §4.6 series 嵌入模板前的聚合步骤
+
+**Fallback 策略**: 若 GPT-5.4 部署临时不可用 → 降级回 GPT-5.4-mini + 在响应中加 `degraded_mode=true` 标志,客户端可决定是否提示用户"当前推理能力受限"。
+
+**可观测性** (在 §9 埋点基础上新增字段):
+- `model_tier`: `default` | `complex` | `series_writer` | `degraded`
+- `upgrade_reason`: `confidence` | `multi_tool` | `pushback` | `complex_intent` | `n/a`
+- 仪表盘: 升级率按 locale/intent 分布,目标 < 15%;周度成本报告按 tier 分摊
+
 ---
 
 ## 7. 客户端 ↔ 后端 API 契约
@@ -1643,7 +1697,8 @@ event: done     data: {"request_id":"...","latency_ms":1870}
 ```
 request_id, device_id_hash, region, locale,
 start_ts, end_ts, ttft_ms, total_ms,
-model_name, prompt_tokens, completion_tokens,
+model_name, model_tier, upgrade_reason,  -- ★ v0.2: default|complex|series_writer|degraded
+prompt_tokens, completion_tokens,
 cache_level_hit,                 -- none | semantic | score | schedule | dedupe
 tool_calls: [
   { name, start_ms, duration_ms, ok, error_code,

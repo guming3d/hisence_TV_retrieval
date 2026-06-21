@@ -682,23 +682,7 @@ LLM 首 token 通过 SSE 流回客户端,STT→TTS 管道即时朗读。这是 3
 
 ---
 
-## 11. 交付路线图 (建议)
-
-| 阶段 | 时长 | 里程碑 |
-|---|---|---|
-| **M1 架构 PoC** | 2 周 | 单频道、英语,端到端跑通 EPG 查询 |
-| **M2 数据层** | 3 周 | Postgres + AI Search 双存储,摄入管道上线 |
-| **M3 体育增强** | 2 周 | 实体链接器 + Sportradar 集成 |
-| **M4 Agent 编排** | 2 周 | 四工具 + 流式响应 + 缓存 |
-| **M5 可观测与评估** | 2 周 | 评估集、仪表盘、告警 |
-| **M6 生产加固** | 2 周 | 私网、安全、压测、灾演 |
-| **M7 灰度上线** | 2 周 | 5% → 25% → 100% 流量 |
-
-**总计 ~15 周至生产全量**。
-
----
-
-## 12. 评审问题清单
+## 11. 评审问题清单
 
 请客户在评审时反馈以下问题:
 
@@ -712,13 +696,11 @@ LLM 首 token 通过 SSE 流回客户端,STT→TTS 管道即时朗读。这是 3
    **(d)** 首批规模与周/月增量量级,用于 compute_merged 并发与嵌入成本预算。)
 3. simpleTV Kafka topic 的消息契约 (schema、retention、key 策略) 是否已定?
 4. VOD 元数据可用字段 (DRM、分辨率、上下架时间、地区授权) 清单?
-5. 三源更新频率是否有硬性 SLA (如 IMDB 最长间隔、simpleTV 周度窗口宽度)?
+5. 数据源更新频率是否有硬性 SLA (如 IMDB 最长间隔、simpleTV 周度窗口宽度)?
 
 **基础设施与运维**
 5a. **结构化存储选型**: HLD §3.0.1 论证了 **PostgreSQL Flexible Server** 为推荐方案(`pg_trgm` / `merge_version` CAS / `tstzrange` + GIST 三项关键负载原生支持)。请客户确认:
    - (a) 是否已有 **Postgres 运维实践 (DBA / 监控 / 备份策略)**,或需要从零搭建?
-   - (b) 若客户有硬性 **MySQL 标准化** 要求,接受 §3.0.1 所述回退代价(~3–4 工程周 + 两项性能保证下降)吗?
-   - (c) Elasticsearch 已拒绝作 SoR(非事务、非 ACID),但若客户期望 ES 扮演"可搜索结构化副本",应在 §3 之外单开讨论。
 
 **业务与合规**
 6. 是否已有体育数据 API 供应商合作 (Sportradar / Opta / 其他)?
@@ -737,4 +719,4 @@ LLM 首 token 通过 SSE 流回客户端,STT→TTS 管道即时朗读。这是 3
 
 ---
 
-> **下一步**: 请客户评审本 HLD v0.2。评审通过后,LLD 同步升级为 v0.2,补齐 `titles` / `source_records` / `vod_assets` DDL、Title Resolver 伪代码、doc_type 索引字段、三源字段归属矩阵与新增评估集 (去重假阳/假阴、merge 优先级、tvSeries rebuild 触发)。
+> **下一步**: 请客户评审本 HLD v0.2。评审通过后,LLD 同步升级为 v0.2,补齐 `titles` / `source_records` / `vod_assets` DDL、Title Resolver 伪代码、doc_type 索引字段、三个数据源字段归属矩阵与新增评估集 (去重假阳/假阴、merge 优先级、tvSeries rebuild 触发)。
