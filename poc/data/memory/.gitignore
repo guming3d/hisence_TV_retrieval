@@ -1,0 +1,4 @@
+# Runtime offline memory store — per-viewer preference files written at run time.
+# The folder is tracked (via this file); generated viewer JSON is not.
+*.json
+!.gitignore

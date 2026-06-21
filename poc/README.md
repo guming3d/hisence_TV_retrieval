@@ -21,6 +21,7 @@ It is designed to run in two modes:
 | 2 | **Web IQ** — latest web / news / images | `src/tools/webiq.py` → `webiq_search` against `api.microsoft.ai` (x‑apikey auth) |
 | 3 | **Agent Optimizer** — eval‑driven instruction/model tuning | `src/.agent_configs/baseline/` + `src/eval.yaml` + optimizer‑aware `src/config.py` |
 | 4 | **Evaluation & Monitoring** — batch + continuous eval, tracing | GenAI OpenTelemetry → App Insights in `src/main.py`; `data/eval/seed_dataset.jsonl` |
+| 5 | **Memory** — managed, cross‑session viewer personalization | `src/tools/memory.py` → `remember_viewer_preference` / `recall_viewer_preferences` over a Foundry **memory store** (`beta.memory_stores`) |
 
 ## Architecture
 
@@ -30,8 +31,11 @@ remote AI key ──► hosted agent (responses) ──► LangGraph tool‑call
                                                  ├─ webiq_search        (Feature 2)
                                                  ├─ query_schedule      (EPG)
                                                  ├─ get_live_scores      (scores)
-                                                 └─ tune_to_channel      (device)
+                                                 ├─ tune_to_channel      (device)
+                                                 ├─ remember_viewer_preference  (Feature 5)
+                                                 └─ recall_viewer_preferences   (Feature 5)
                           tracing ─► OpenTelemetry ─► Application Insights (Feature 4)
+                          memory  ─► Foundry memory store (beta.memory_stores) (Feature 5)
 ```
 
 The agent's **instruction + model are read through the Agent Optimizer config**
@@ -59,12 +63,15 @@ poc/
     .agent_configs/baseline/     # optimizer baseline: metadata.yaml + instructions.md + tools.json
     eval.yaml                    # optimizer + evaluation config
     tools/
-      foundry_iq.py  webiq.py  scenario.py  __init__.py
+      foundry_iq.py  webiq.py  scenario.py  memory.py  __init__.py
   data/
     kb/                          # generated Foundry IQ docs (kb_docs.jsonl) + schedule.json
     eval/seed_dataset.jsonl      # 24 Hisense eval queries
+    memory/                      # offline per-viewer memory JSON (Feature 5 fallback)
   scripts/
     build_kb_docs.py             # 1.2026-04-14.json (+ LLD schema) -> KB docs
+    setup_foundry_iq.py          # provision AI Search index + knowledge base (Feature 1)
+    setup_memory.py              # provision the Foundry memory store (Feature 5)
     smoke_local.py               # offline routing smoke test
 ```
 
@@ -144,6 +151,7 @@ Set these on the azd environment (or agent env) before deploy:
 | `AZURE_AI_MODEL_DEPLOYMENT_NAME` | hosted agent | model deployment (this POC deploys `gpt-4.1-mini`; HLD default is the `gpt-5` family) |
 | `FOUNDRY_IQ_ENDPOINT` / `FOUNDRY_IQ_KNOWLEDGE_BASE` / `FOUNDRY_IQ_KNOWLEDGE_SOURCE` | 1 | AI Search endpoint + knowledge base + knowledge source names (empty ⇒ baked‑KB retriever ships in the ZIP). Provision with `scripts/setup_foundry_iq.py`. |
 | `WEBIQ_API_KEY` / `WEBIQ_BASE_URL` | 2 | source the key from a secret store in production |
+| `MEMORY_STORE_NAME` / `MEMORY_EMBEDDING_DEPLOYMENT` / `MEMORY_DEFAULT_VIEWER` | 5 | Foundry memory store name + embedding deployment + default viewer id (empty ⇒ per‑viewer JSON under `data/memory/`). Provision with `scripts/setup_memory.py`. |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | 4 | platform‑injected when hosted |
 
 `FOUNDRY_PROJECT_ENDPOINT` and `APPLICATIONINSIGHTS_CONNECTION_STRING` are injected by the
@@ -155,14 +163,15 @@ This POC has been deployed and verified live on Foundry:
 
 | Item | Value |
 |------|-------|
-| Agent | `hisense-tv-assistant:7` — **active** (code‑deploy) |
+| Agent | `hisense-tv-assistant` — **active** (code‑deploy) |
 | Foundry account / project | `control-plane-test` / `control-plane-test` (rg `minggu-2026`, **eastus2**) |
 | Model (agent) | `gpt-4.1-mini` · eval judge `gpt-4.1` · optimizer `GPT-5.4` |
 | Foundry IQ KB | AI Search `hisense-poc-search-06211057` (**eastus**) · index `hisense-programs` (57 docs) · knowledge source `hisense-kb-source` · knowledge base `hisense-kb` (GA `2026-04-01`) |
+| Memory store | `hisense-viewer-memory` (`beta.memory_stores`) · chat model `gpt-4.1-mini` · embedding `text-embedding-3-small` · user‑profile + chat‑summary memories enabled |
 | Responses endpoint | `…/api/projects/control-plane-test/agents/hisense-tv-assistant/endpoint/protocols/openai/responses?api-version=v1` |
 | Monitoring | App Insights `control-plane-test-appinsights-4330` (Trace IDs returned per response) |
 
-All four features were exercised against the **deployed** agent:
+All five features were exercised against the **deployed** agent:
 
 * **Feature 1 — Foundry IQ:** ✅ **live against a real AI Search knowledge base.** A Chinese
   query (“推荐一部关于新闻或时事的节目”) is grounded by `knowledgebases/hisense-kb/retrieve`
@@ -178,6 +187,14 @@ All four features were exercised against the **deployed** agent:
   `task_adherence` 24/24, `intent_resolution` 20/24, `relevance` 13/24. `tool_call_accuracy`
   ERRORED on all 24 (responses‑trace tool‑call shape not yet captured by that evaluator — an
   improvement signal, not an agent fault). ✅ live + traced.
+* **Feature 5 — Memory:** ✅ **live against a real Foundry memory store.** A "remember" turn
+  ("请记住我是利物浦球迷，喜欢看英超，偏好中文解说。") routed to `remember_viewer_preference`,
+  which called `beta.memory_stores.begin_update_memories` (update_delay=0); the store extracted
+  structured `user_profile` + `chat_summary` memories ("User is a Liverpool football fan", "...
+  English Premier League...", "... prefers Chinese commentary") under scope `viewer_demo-viewer`.
+  A **separate session** then asked "根据我的偏好，今晚推荐我看什么？" → `recall_viewer_preferences`
+  retrieved those memories and the agent personalized its reply in Chinese. Without
+  `MEMORY_STORE_NAME` it degrades to per‑viewer JSON under `data/memory/`.
 
 **Provisioning the Foundry IQ knowledge base (reproduce the live F1 setup):**
 
@@ -205,6 +222,30 @@ into `content`, so keyword + semantic ranking grounds Chinese queries against Da
 programs without any embedding/OpenAI dependency. The baked‑KB retriever remains the offline
 fallback when the three `FOUNDRY_IQ_*` vars are unset.
 
+**Provisioning the Memory store (reproduce the live F5 setup):**
+
+```powershell
+# 1. Deploy an embedding model (text-embedding-3-small) and a chat model (gpt-4.1-mini)
+#    on the Foundry account — the memory store uses them to extract/index memories.
+# 2. Grant the *project* and *account* system-assigned managed identities these roles on the
+#    AI Services account so the memory backend can call the models:
+#      Foundry User · Cognitive Services OpenAI User · Cognitive Services User
+#    (data-plane RBAC can take 5-15 min to propagate). The hosted agent's runtime identity
+#    must also be able to call the project memory API.
+# 3. Create the memory store (idempotent get-or-create):
+$env:POC_OFFLINE = "0"
+$env:MEMORY_STORE_NAME = "hisense-viewer-memory"
+$env:MEMORY_EMBEDDING_DEPLOYMENT = "text-embedding-3-small"
+.\.venv\Scripts\python.exe scripts\setup_memory.py     # creates/returns the memory store
+
+# 4. Wire the agent and redeploy (these env vars are already in src/agent.yaml):
+#      MEMORY_STORE_NAME · MEMORY_EMBEDDING_DEPLOYMENT · MEMORY_DEFAULT_VIEWER
+azd deploy hisense-tv-assistant -e poc
+```
+
+> **Scope format:** the memory `begin_update_memories` endpoint only allows `[A-Za-z0-9_-]` in a
+> scope, so `_scope()` namespaces viewers as `viewer_<id>` (a `:` or `/` separator is rejected).
+
 ## Demo script (the customer story)
 
 1. **Foundry IQ** — “推荐一部关于丹麦收养/新闻的纪录片，讲了什么？”
@@ -217,6 +258,10 @@ fallback when the three `FOUNDRY_IQ_*` vars are unset.
    candidate diff, then redeploy.
 5. **Evaluation & Monitoring** — batch eval over the seed dataset, then continuous eval +
    App Insights traces.
+6. **Memory (cross‑session personalization)** — Session 1: “请记住我是利物浦球迷，喜欢看英超，
+   偏好中文解说。” → `remember_viewer_preference` writes to the Foundry memory store. Start a
+   **new session** and ask: “根据我的偏好，今晚推荐我看什么？” → `recall_viewer_preferences`
+   brings back the stored profile and the agent personalizes the recommendation in Chinese.
 
 ## Feature 3 — Agent Optimizer
 
@@ -262,6 +307,92 @@ Drive these through the microsoft‑foundry **observe** skill, which orchestrate
 evaluation MCP tools (`evaluation_agent_batch_eval_create`, `evaluation_comparison_create`,
 `continuous_eval_create`, …) with the required pre‑checks — do not call the raw tools directly.
 
+## Feature 5 — Memory (cross‑session viewer personalization)
+
+The agent remembers a viewer's preferences (favorite teams/sports, preferred commentary
+language, liked/disliked genres) **across the short, stateless sessions** a TV remote produces,
+so a later session can personalize recommendations without re‑asking.
+
+* **Managed memory store** — `src/tools/memory.py` talks to a Foundry **memory store** through
+  `azure-ai-projects` `client.beta.memory_stores` (SDK‑only; no MCP/CLI surface):
+  * `remember_viewer_preference(note, viewer_id=None)` → `begin_update_memories(..., update_delay=0).result()`.
+    The store's chat model **extracts** structured `user_profile` + `chat_summary` memories from
+    free‑text notes — you store a sentence, it indexes durable facts.
+  * `recall_viewer_preferences(query=None, viewer_id=None)` → `search_memories(...)` returns the
+    relevant memories for the viewer scope.
+* **Scope = viewer identity** — `_scope()` namespaces memories as `viewer_<id>` (the update
+  endpoint only accepts `[A-Za-z0-9_-]`). All sessions for the same viewer share one scope, which
+  is what makes recall work *across* sessions. `MEMORY_DEFAULT_VIEWER` is used when the caller
+  does not pass a `viewer_id` (the responses protocol has no per‑user field in this POC).
+* **Store config** — `scripts/setup_memory.py` creates `hisense-viewer-memory` with
+  `MemoryStoreDefaultDefinition` (chat model `gpt-4.1-mini`, embedding `text-embedding-3-small`)
+  and `MemoryStoreDefaultOptions` (user‑profile + chat‑summary enabled).
+* **Offline fallback** — with no `MEMORY_STORE_NAME` (or `POC_OFFLINE=1`), both tools read/write
+  per‑viewer JSON under `data/memory/`, so the cross‑session demo runs with no Azure dependency.
+
+> The memory backend calls the chat + embedding deployments using the project/account managed
+> identity, so those identities need **Foundry User**, **Cognitive Services OpenAI User**, and
+> **Cognitive Services User** on the AI Services account (else memory ops return a model‑auth 401).
+
+## Prompt-agent variant (no-code managed tools)
+
+The headline demo above is a **hosted** LangGraph agent (`hisense-tv-assistant`) — a container with
+custom Python, which is the right shape for complex orchestration. But the *easiest* way to show an
+enterprise user how Foundry's native capabilities snap onto an agent is a **prompt agent**: just an
+LLM deployment plus a list of Foundry-managed tools, **no container and no code**. The scripts under
+`scripts/create_prompt_agent.py` + `scripts/verify_prompt_agent.py` build and verify that variant.
+
+It ships as a **single combined prompt agent** `hisense-tv-assistant-prompt` (model `gpt-5.4`) that
+attaches **all three** Foundry-managed tools at once, plus a **dedicated** `hisense-program-library`
+agent kept available for grounded program search (see the platform-behavior note below for why the
+library agent still matters):
+
+| Prompt agent | Foundry-managed tools | Demonstrates |
+|--------------|-----------------------|--------------|
+| `hisense-tv-assistant-prompt` | **Web IQ** (`MCPTool` → the literal WebIQ MCP server `api.microsoft.ai/v3/mcp` via the project `WebIQ` connection) + **Memory** (`MemorySearchPreviewTool` → store `hisense-viewer-memory`, scope `viewer_demo-viewer`) + **Foundry IQ** (`AzureAISearchTool` → index `hisense-programs`, **SEMANTIC** ranking, via the `hisense-search` AAD connection) | latest web/news/images, cross-session viewer personalization, and grounded program-library knowledge — all attached to one agent |
+| `hisense-program-library` | **Foundry IQ** (`AzureAISearchTool` → index `hisense-programs`, **SEMANTIC** ranking, no vectors) | grounded program-library knowledge with native citations (the reliable path for EPG/program search) |
+
+Both reuse the **same** managed resources as the hosted agent (the AI Search index, the WebIQ
+connection, the memory store), so this is purely a different *agent surface* over identical backends.
+
+```powershell
+# from poc/ with the venv; set the project endpoint first
+$env:FOUNDRY_PROJECT_ENDPOINT = "https://<account>.services.ai.azure.com/api/projects/<project>"
+.\.venv\Scripts\python.exe scripts\create_prompt_agent.py   # creates/versions the combined agent
+.\.venv\Scripts\python.exe scripts\verify_prompt_agent.py   # 4 checks across both agents; exits 0 on success
+```
+
+`verify_prompt_agent.py` is a **passing** test (exit 0): it asserts Web IQ (`mcp_call`) and Memory
+(`memory_search_call`) **fire** on the combined agent, asserts Azure AI Search is **suppressed** on the
+combined agent (encoding the documented finding below as a positive assertion), and asserts Azure AI Search
+**fires** (`azure_ai_search_call`) on the dedicated `hisense-program-library` agent — so all three headline
+capabilities stay demonstrable in the POC.
+
+Verified live (responses API, `agent_reference`) on the combined agent: Web IQ → `mcp_call` (tools
+`news` + `images`) returns current 2026 World Cup Haaland headlines with source + image links; Memory →
+`memory_search_call` recalls the saved viewer profile (中文解说 / 时政新闻 / 英超 / DR1) and personalizes
+**without fabricating program names**. Foundry IQ, however, **does not fire** on the combined agent —
+see the platform-behavior note immediately below.
+
+> **Platform behavior (empirically confirmed) — Memory suppresses Azure AI Search on one prompt agent.**
+> Per the user's request, `hisense-tv-assistant-prompt` attaches **all three** tools. But the current
+> prompt-agent runtime runs an **automatic per-turn Memory retrieval** that pre-empts the single managed
+> "retrieval/grounding" slot, so the attached `AzureAISearchTool` **never fires** while Memory is present
+> — `azure_ai_search_call` is absent from the output items on every program query, and forcing it via
+> `tool_choice="required"` still yields only Memory/WebIQ calls (the API also rejects naming the search
+> tool: `tool_choice.name` is an unknown parameter). The combined agent therefore carries Foundry IQ as
+> an **attached-but-dead** tool: for program/EPG questions it now degrades honestly (it tells the viewer
+> it cannot pull live listings in this mode and offers WebIQ or the dedicated library agent) rather than
+> fabricating program names.
+>
+> No public Microsoft doc forbids combining these tools — the tool catalog says you can attach multiple
+> tools and the model decides which to invoke — so this is a runtime characteristic of the **preview**
+> Memory tool, not a documented limit. Memory **does** coexist with `MCPTool` (WebIQ), and AI Search
+> coexists with WebIQ; only the **Memory + AI-Search** pair collides. To get **all three actually
+> working together**, use either (a) the **hosted LangGraph agent** (`hisense-tv-assistant`), which
+> orchestrates AI Search + WebIQ + Memory in code with no such constraint, or (b) the **two-agent split**
+> — keep program search on `hisense-program-library` and personalization/news on the combined agent.
+
 ## Offline ⇄ live behavior
 
 | Tool | Live | Offline |
@@ -270,6 +401,7 @@ evaluation MCP tools (`evaluation_agent_batch_eval_create`, `evaluation_comparis
 | `foundry_iq_search` | AI Search **knowledge base** retrieve (GA `2026-04-01`, semantic intent) | keyword retriever over `data/kb/kb_docs.jsonl` (EN→ZH synonym bridge) |
 | `webiq_search` | `api.microsoft.ai` web/news/images | labelled offline stub |
 | `query_schedule` / `get_live_scores` / `tune_to_channel` | reads `data/kb/schedule.json`; scores/tune are scenario mocks | same |
+| `remember_viewer_preference` / `recall_viewer_preferences` | Foundry **memory store** (`beta.memory_stores`, profile + summary extraction) | per‑viewer JSON under `data/memory/` |
 
 Mode is inferred automatically: **offline** when `FOUNDRY_PROJECT_ENDPOINT` is unset or
 `POC_OFFLINE=1`; otherwise **live**.

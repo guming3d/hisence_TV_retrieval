@@ -33,6 +33,8 @@ CASES: list[tuple[str, str]] = [
     ("DR1 今晚几点有节目?是不是直播", "query_schedule"),
     ("现在比分多少,昨晚谁赢了", "get_live_scores"),
     ("帮我换台到 DR1", "tune_to_channel"),
+    ("记住我是皇家马德里球迷,以后多推荐西甲", "remember_viewer_preference"),
+    ("根据我的偏好,有什么个性化推荐", "recall_viewer_preferences"),
 ]
 
 

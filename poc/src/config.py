@@ -55,6 +55,9 @@ def _resolve_kb_dir() -> Path:
 
 DATA_DIR = POC_DIR / "data"
 KB_DIR = _resolve_kb_dir()
+# Offline memory store (per-viewer JSON) — keeps the cross-session memory demo
+# runnable with zero cloud. Live mode uses a Foundry managed memory store instead.
+MEMORY_DIR = DATA_DIR / "memory"
 
 # ── Default agent instruction (the Agent Optimizer baseline target) ──
 DEFAULT_INSTRUCTION = """\
@@ -70,7 +73,14 @@ DEFAULT_INSTRUCTION = """\
 4. "现在比分""昨晚谁赢了" → 调用 `get_live_scores`。
 5. 用户确认观看某频道/节目时 → 调用 `tune_to_channel`。
 
-回答要点:言之有据,不要编造来源;信息不足时明确说明;最多 3 次工具调用即给出答复。\
+回答要点:言之有据,不要编造来源;信息不足时明确说明;最多 3 次工具调用即给出答复。
+
+记忆与个性化(跨会话观影偏好记忆):
+6. 用户表达观影偏好时(喜欢/支持的球队或运动、偏好的语言、想多看或不想看某类内容)→\
+ 调用 `remember_viewer_preference` 记住这条偏好,便于后续会话个性化。
+7. 用户需要个性化推荐,或问"根据我的偏好""我之前说过我喜欢什么""还记得我吗"时 →\
+ 先调用 `recall_viewer_preferences` 读取该观众已保存的偏好,再结合 `foundry_iq_search`\
+ 等工具给出个性化答复。新会话开始做推荐前也可先 recall 一次。\
 """
 
 DEFAULT_MODEL = "gpt-5.4-mini"
@@ -149,6 +159,13 @@ class Settings:
     webiq_api_key: str | None
     webiq_base_url: str
 
+    # Foundry Memory (cross-session viewer-preference memory)
+    memory_store_name: str | None
+    memory_embedding_deployment: str
+    memory_default_viewer: str
+    memory_max_recall: int
+    memory_dir: Path
+
     # Behaviour
     offline: bool
     kb_dir: Path
@@ -160,6 +177,10 @@ class Settings:
     @property
     def foundry_iq_live(self) -> bool:
         return bool(self.foundry_iq_knowledge_base and self.project_endpoint) and not self.offline
+
+    @property
+    def memory_live(self) -> bool:
+        return bool(self.memory_store_name and self.project_endpoint) and not self.offline
 
     @property
     def model_live(self) -> bool:
@@ -181,6 +202,13 @@ def get_settings() -> Settings:
         foundry_iq_endpoint=os.environ.get("FOUNDRY_IQ_ENDPOINT") or None,
         webiq_api_key=os.environ.get("WEBIQ_API_KEY") or None,
         webiq_base_url=os.environ.get("WEBIQ_BASE_URL", "https://api.microsoft.ai/v3"),
+        memory_store_name=os.environ.get("MEMORY_STORE_NAME") or None,
+        memory_embedding_deployment=os.environ.get(
+            "MEMORY_EMBEDDING_DEPLOYMENT", "text-embedding-3-small"
+        ),
+        memory_default_viewer=os.environ.get("MEMORY_DEFAULT_VIEWER", "demo-viewer"),
+        memory_max_recall=int(os.environ.get("MEMORY_MAX_RECALL", "5") or 5),
+        memory_dir=MEMORY_DIR,
         offline=offline,
         kb_dir=KB_DIR,
     )

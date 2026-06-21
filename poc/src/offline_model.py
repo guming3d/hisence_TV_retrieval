@@ -28,6 +28,11 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 # bottom; content/recommendation intent is checked before the news keyword so
 # "推荐一部关于…新闻…的纪录片" routes to retrieval, not Web IQ.
 _ROUTING: list[tuple[tuple[str, ...], str, dict[str, Any]]] = [
+    # Memory intent is the most specific — check it before content/news/schedule.
+    (("根据我的", "我的偏好", "个性化", "还记得我", "我之前说", "我喜欢什么", "recall", "记得我吗"),
+     "recall_viewer_preferences", {}),
+    (("记住", "记一下", "我支持", "设为我的偏好", "以后多", "remember", "帮我记住"),
+     "remember_viewer_preference", {}),
     (("推荐", "纪录片", "剧情", "介绍一下", "哪部", "那部", "讲的是", "recommend"),
      "foundry_iq_search", {}),
     (("比分", "进球", "赢了", "score", "比赛结果"), "get_live_scores", {}),
@@ -57,8 +62,10 @@ def _route(query: str) -> tuple[str, dict[str, Any]]:
     for keywords, tool_name, base_args in _ROUTING:
         if any(k.lower() in low for k in keywords):
             args = dict(base_args)
-            if tool_name in ("webiq_search", "foundry_iq_search"):
+            if tool_name in ("webiq_search", "foundry_iq_search", "recall_viewer_preferences"):
                 args["query"] = query
+            elif tool_name == "remember_viewer_preference":
+                args["note"] = query
             elif tool_name == "tune_to_channel":
                 args["channel"] = "DR1 Denmark"
             return tool_name, args
