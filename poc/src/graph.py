@@ -1,0 +1,62 @@
+# Copyright (c) Microsoft. All rights reserved.
+"""LangGraph agent assembly for the Hisense TV Sports AI Assistant.
+
+``build_graph()`` returns the compiled LangGraph agent the hosted runtime
+serves over the ``responses`` protocol. The model is resolved from
+:mod:`config`:
+
+* **live** — a Foundry model deployment reached through ``ChatOpenAI`` with an
+  Entra bearer token (the official hosted-agent pattern).
+* **offline** — :class:`offline_model.FakeRouterChatModel`, so the graph runs
+  with zero cloud setup for local smoke tests / demos.
+
+The system instruction and model name come from :func:`config.get_agent_config`,
+which is **Agent Optimizer-aware** — an optimized candidate from
+``.agent_configs/`` is picked up here without any code change.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from config import get_agent_config, get_settings
+from tools import ALL_TOOLS
+
+
+def build_model() -> Any:
+    """Construct the chat model for the current mode (live Foundry or offline)."""
+    settings = get_settings()
+    cfg = get_agent_config()
+
+    if not settings.model_live:
+        from offline_model import FakeRouterChatModel
+
+        return FakeRouterChatModel()
+
+    # ── Live: Foundry model deployment via the project's OpenAI endpoint ──
+    from azure.ai.projects import AIProjectClient
+    from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+    from langchain_openai import ChatOpenAI
+
+    credential = DefaultAzureCredential()
+    project = AIProjectClient(endpoint=settings.project_endpoint, credential=credential)
+    openai_client = project.get_openai_client()
+    token_provider = get_bearer_token_provider(credential, "https://ai.azure.com/.default")
+
+    return ChatOpenAI(
+        model=settings.model_deployment,
+        base_url=str(openai_client.base_url),
+        api_key=token_provider,  # bearer-token provider; refreshed per call
+        use_responses_api=True,
+        output_version="responses/v1",
+        temperature=cfg.temperature,
+    )
+
+
+def build_graph() -> Any:
+    """Assemble the tool-calling LangGraph agent (model + bound scenario tools)."""
+    from langchain.agents import create_agent
+
+    cfg = get_agent_config()
+    model = build_model()
+    return create_agent(model, tools=ALL_TOOLS, system_prompt=cfg.instruction)

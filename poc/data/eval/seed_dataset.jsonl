@@ -1,0 +1,24 @@
+{"query": "推荐一部关于丹麦的纪录片，今晚几点播？", "expected_behavior": "先用 foundry_iq_search 检索节目库找到纪录片类节目并给出标题与简介，再用 query_schedule 给出播出时间；回答附来源节目标题。"}
+{"query": "有没有什么犯罪悬疑类的剧集可以看？", "expected_behavior": "调用 foundry_iq_search（doc_type=series 或不限），返回 1-3 部犯罪/悬疑类剧集标题与简短介绍，注明来源标题，不编造不存在的节目。"}
+{"query": "那部讲新闻的节目叫什么，是哪个频道的？", "expected_behavior": "调用 foundry_iq_search 命中新闻类节目（如 TVA / TV Avisen），回答节目名与频道（DR1 Denmark）。"}
+{"query": "今晚 DR1 有哪些直播节目？", "expected_behavior": "调用 query_schedule（channel=DR1, live_only=true），列出直播节目的名称与开始时间；若无直播明确说明。"}
+{"query": "TVA 几点开始播，是直播还是重播？", "expected_behavior": "调用 query_schedule(title=TVA)，返回开始/结束时间并说明 live/rerun 状态。"}
+{"query": "现在有什么节目正在播？", "expected_behavior": "调用 query_schedule 返回当前时段节目；时间信息来自 EPG，不臆造。"}
+{"query": "哈兰德昨晚进球了吗？给我最新新闻", "expected_behavior": "调用 webiq_search(vertical=news) 获取最新新闻，回答时引用来源链接；不要用 foundry_iq_search 回答时效性问题。"}
+{"query": "皇马最近一场比赛的结果和新闻", "expected_behavior": "调用 webiq_search(vertical=news) 返回最新报道并引用链接；如需比分可同时说明。"}
+{"query": "给我几张 C 罗的照片", "expected_behavior": "调用 webiq_search(vertical=images) 返回图片结果（标题/链接）。"}
+{"query": "2026 年世界杯最新消息", "expected_behavior": "调用 webiq_search(vertical=news) 返回最新资讯并引用来源；明确这是联网信息。"}
+{"query": "现在这场比赛比分多少？", "expected_behavior": "调用 get_live_scores 返回比分；若问题包含'最新新闻'则改用 webiq_search。"}
+{"query": "昨晚那场谁赢了？", "expected_behavior": "调用 get_live_scores（或在需要详情时配合 webiq_search），给出胜负结果。"}
+{"query": "切换到 DR1 频道", "expected_behavior": "调用 tune_to_channel(channel=DR1)，返回换台成功的确认。"}
+{"query": "帮我打开正在播新闻的那个台", "expected_behavior": "可先 query_schedule 找到正在播新闻的频道，再 tune_to_channel 切换；或直接确认频道后换台。"}
+{"query": "有没有适合全家看的娱乐综艺节目？", "expected_behavior": "调用 foundry_iq_search 返回娱乐/综艺类节目推荐，附来源标题，避免推荐不存在的内容。"}
+{"query": "介绍一下 TV Avisen 这个节目", "expected_behavior": "调用 foundry_iq_search 命中该节目，给出其内容简介（新闻类，DR 制作），引用来源。"}
+{"query": "丹麦本地有什么历史或政治类节目？", "expected_behavior": "调用 foundry_iq_search 按类型检索，返回历史/政治类节目；若样本无对应类型，如实说明。"}
+{"query": "今晚有体育比赛直播吗？几点？", "expected_behavior": "调用 query_schedule(live_only=true) 检查体育类直播；本样本无体育节目时应如实告知没有，不臆造赛事。"}
+{"query": "推荐一部高分电影", "expected_behavior": "调用 foundry_iq_search(doc_type=movie)，结合 imdb 评分给出推荐并附标题与评分。"}
+{"query": "DR1 这个频道是哪个国家的？", "expected_behavior": "可由 foundry_iq_search/已知元数据回答 DR1 Denmark 属于丹麦（DK）；信息不足时说明。"}
+{"query": "把今晚的新闻节目调出来并切过去看", "expected_behavior": "先 query_schedule 找到新闻节目及频道，再 tune_to_channel 切换，最多 3 次工具调用完成。"}
+{"query": "最近有什么关于人工智能的科技新闻？", "expected_behavior": "调用 webiq_search(vertical=news)，返回最新科技新闻并引用来源链接。"}
+{"query": "这部剧一共多少集？", "expected_behavior": "调用 foundry_iq_search（series 文档含 episode_count），返回剧集集数；信息缺失时说明。"}
+{"query": "无关问题：今天天气怎么样适合出门吗", "expected_behavior": "天气属开放域时效问题，调用 webiq_search(vertical=news/web) 或说明这是联网信息；不要编造电视节目。"}

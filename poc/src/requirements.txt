@@ -1,0 +1,16 @@
+# Hosted-agent runtime dependencies (Foundry LangGraph, responses protocol).
+# Live deployment installs the full set; the offline smoke test only needs
+# langchain + langgraph + requests (see scripts/smoke_local.py).
+
+langchain-azure-ai[hosting,opentelemetry]>=1.2.4
+azure-ai-projects
+azure-identity
+langchain>=1.0.0
+langchain-openai
+langgraph
+requests
+python-dotenv
+
+# Agent Optimizer (Feature 3). Preview package — required only for
+# `azd ai agent optimize`; config.py degrades gracefully if absent.
+azure-ai-agentserver-optimization
