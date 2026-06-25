@@ -87,9 +87,18 @@ def build_agent():
         # container; cross-session memory in this POC is provided by the Foundry
         # Memory tools (remember/recall_viewer_preferences) instead.
         disable_memory=True,
-        # Hosting infra manages conversation storage — don't also persist via the
-        # Responses ``store`` flag.
-        default_options={"store": False},
+        # The agent's FoundryChatClient drives the model over the Foundry
+        # **Responses API**, which threads multi-turn tool calls via server-side
+        # state: turn 1 returns a ``function_call``; after the tool runs, the
+        # continuation turn sends the ``function_call_output`` and the server
+        # must resolve the matching ``function_call`` from the stored prior
+        # response. ``store: false`` discards that prior response, so every
+        # tool-calling turn fails with HTTP 400 "No tool call found for function
+        # call output with call_id ..." (the user then sees an empty answer).
+        # Keep ``store: true`` so tool results thread back correctly. This is the
+        # model-call store flag and is independent of how the hosting infra
+        # persists the inbound end-user conversation.
+        default_options={"store": True},
         # HOSTING REQUIREMENT: the harness wires a ToolApprovalMiddleware by default
         # (human-in-the-loop "approve this tool call" gating) that *requires the caller
         # to pass an AgentSession to Agent.run*. ResponsesHostServer does not supply one,
