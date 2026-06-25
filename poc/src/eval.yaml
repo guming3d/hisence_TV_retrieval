@@ -7,7 +7,7 @@
 
 name: hisense-tv-assistant-opt
 agent:
-  name: hisense-tv-assistant
+  name: hisense-tv-assistant-langgraph
   kind: hosted
   version: "8"
   model: gpt-4.1-mini

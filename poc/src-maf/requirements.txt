@@ -1,0 +1,34 @@
+# Hosted-agent runtime dependencies — Microsoft Agent Framework (MAF) build,
+# responses protocol, Agent Harness.
+#
+# Mirrors the canonical 04-hosting/foundry-hosted-agents/responses sample
+# (agent-framework + agent-framework-foundry-hosting) plus this POC's tool deps.
+# No LangChain/LangGraph and no Agent-Optimizer package — that plumbing lives in
+# the LangGraph twin (../src) only.
+
+# Microsoft Agent Framework core: provides create_harness_agent, the Agent Harness,
+# InMemoryHistoryProvider and the @tool decorator (the top-level `agent_framework`
+# namespace). Pinned to 1.9.0 to keep the resolver off the internally-inconsistent
+# 1.0.0 GA line (agent-framework 1.0.0 -> core==1.0.0, but orchestrations 1.0.0
+# requires core>=1.9.0 -> ResolutionImpossible). We depend on -core directly rather
+# than the `agent-framework` meta-package so the heavy `core[all]` integration extra
+# (bedrock/boto3, anthropic, google, mem0/qdrant, redis, ollama, pythonnet, hyperlight)
+# is NOT pulled into the hosted Linux build — we only need Foundry + the harness.
+agent-framework-core==1.9.0
+# FoundryChatClient (agent_framework.foundry) — the chat client the harness runs on.
+agent-framework-foundry==1.8.2
+# Foundry hosting surface: ResponsesHostServer (responses protocol). Alpha-only
+# package; pin the exact build so the remote resolver installs it deterministically
+# and its agent-framework-core>=1.9.0 dependency stays consistent with the pin above.
+agent-framework-foundry-hosting==1.0.0a260618
+# agent-framework-foundry-hosting's responses server imports `mcp` at module load
+# (from mcp import McpError) but does NOT declare it as a dependency — it normally
+# arrives transitively via core[all], which we deliberately skip. Pin it explicitly
+# so ResponsesHostServer imports on the lean build.
+mcp==1.28.0
+
+# Tool dependencies (shared with the LangGraph agent's tool bodies).
+azure-ai-projects
+azure-identity
+requests
+python-dotenv

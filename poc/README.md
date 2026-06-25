@@ -3,9 +3,13 @@
 A runnable proof‑of‑concept that demonstrates **Microsoft Foundry as a production‑ready
 agent platform**, using the Hisense TV remote‑key sports assistant scenario.
 
-The agent is a **LangGraph hosted agent** speaking the Foundry **`responses`** protocol
-(`langchain_azure_ai.agents.hosting.ResponsesHostServer`), deployable with `azd ai agent`.
-It is designed to run in two modes:
+The headline agent is a **LangGraph hosted agent** (`hisense-tv-assistant-langgraph`) speaking
+the Foundry **`responses`** protocol (`langchain_azure_ai.agents.hosting.ResponsesHostServer`),
+deployable with `azd ai agent`. A second hosted agent — `hisense-tv-assistant-maf` (under
+`src-maf/`) — exposes the **same seven tools** through the **Microsoft Agent Framework** and its
+**Agent Harness** (`create_harness_agent`); see
+[Microsoft Agent Framework variant](#microsoft-agent-framework-variant-agent-harness).
+Both are designed to run in two modes:
 
 * **Live** — a real Foundry project + model deployment, Foundry IQ knowledge base, and
   Web IQ key are reachable. Every tool calls the real service.
@@ -46,7 +50,7 @@ The agent's **instruction + model are read through the Agent Optimizer config**
 
 ```
 poc/
-  azure.yaml                     # azd hosted-agent service (host: azure.ai.agent)
+  azure.yaml                     # azd hosted-agent services (host: azure.ai.agent): -langgraph + -maf
   infra/
     main.bicep                   # supporting infra: AI Search (Foundry IQ) + App Insights
     main.parameters.json
@@ -64,6 +68,19 @@ poc/
     eval.yaml                    # optimizer + evaluation config
     tools/
       foundry_iq.py  webiq.py  scenario.py  memory.py  __init__.py
+  src-maf/                       # Microsoft Agent Framework + Agent Harness twin (same 7 tools)
+    agent.yaml                   # hosted-agent spec (responses 1.0.0)
+    agent.manifest.yaml          # manifest (model resource)
+    Dockerfile / .dockerignore   # container build
+    main.py                      # FoundryChatClient + create_harness_agent + ResponsesHostServer
+    config.py                    # settings + default instruction (no optimizer plumbing)
+    skills_loader.py             # Foundry Skills -> system prompt (toolbox/local/auto)
+    requirements.txt             # agent-framework + agent-framework-foundry-hosting + tool deps
+    .env.example
+    skills/                      # bundled Foundry Skills (local fallback copies)
+    tools/
+      foundry_iq.py  webiq.py  scenario.py  memory.py  __init__.py
+    data/kb/                     # baked KB docs (self-contained Docker build context)
   data/
     kb/                          # generated Foundry IQ docs (kb_docs.jsonl) + schedule.json
     eval/seed_dataset.jsonl      # 24 Hisense eval queries
@@ -134,11 +151,11 @@ azd ai agent doctor -e poc
 
 # 3) Initialize in code-deploy mode (writes azure.yaml + agent.yaml with remote_build),
 #    then deploy. Code mode means no Dockerfile build runs locally.
-azd ai agent init --src ./src --agent-name hisense-tv-assistant `
+azd ai agent init --src ./src --agent-name hisense-tv-assistant-langgraph `
   --project-id <project-resource-id> --model-deployment gpt-4.1-mini `
   --deploy-mode code --dep-resolution remote_build --runtime python_3_13 `
   --entry-point main.py --protocol responses -e poc --no-prompt --force
-azd deploy hisense-tv-assistant -e poc --no-prompt
+azd deploy hisense-tv-assistant-langgraph -e poc --no-prompt
 ```
 
 > A `Dockerfile` is still included for the alternative **container** path
@@ -163,12 +180,12 @@ This POC has been deployed and verified live on Foundry:
 
 | Item | Value |
 |------|-------|
-| Agent | `hisense-tv-assistant` — **active** (code‑deploy) |
+| Agent | `hisense-tv-assistant-langgraph` — **active** (code‑deploy) |
 | Foundry account / project | `control-plane-test` / `control-plane-test` (rg `minggu-2026`, **eastus2**) |
 | Model (agent) | `gpt-4.1-mini` · eval judge `gpt-4.1` · optimizer `GPT-5.4` |
 | Foundry IQ KB | AI Search `hisense-poc-search-06211057` (**eastus**) · index `hisense-programs` (57 docs) · knowledge source `hisense-kb-source` · knowledge base `hisense-kb` (GA `2026-04-01`) |
 | Memory store | `hisense-viewer-memory` (`beta.memory_stores`) · chat model `gpt-4.1-mini` · embedding `text-embedding-3-small` · user‑profile + chat‑summary memories enabled |
-| Responses endpoint | `…/api/projects/control-plane-test/agents/hisense-tv-assistant/endpoint/protocols/openai/responses?api-version=v1` |
+| Responses endpoint | `…/api/projects/control-plane-test/agents/hisense-tv-assistant-langgraph/endpoint/protocols/openai/responses?api-version=v1` |
 | Monitoring | App Insights `control-plane-test-appinsights-4330` (Trace IDs returned per response) |
 
 All five features were exercised against the **deployed** agent:
@@ -214,7 +231,7 @@ azd env set FOUNDRY_IQ_ENDPOINT        $env:SEARCH_ENDPOINT          -e poc
 azd env set FOUNDRY_IQ_KNOWLEDGE_BASE  hisense-kb                    -e poc
 azd env set FOUNDRY_IQ_KNOWLEDGE_SOURCE hisense-kb-source           -e poc
 # (also set the same three + WEBIQ_API_KEY in src/agent.yaml env, then:)
-azd deploy hisense-tv-assistant -e poc
+azd deploy hisense-tv-assistant-langgraph -e poc
 ```
 
 The index is **text + semantic, no vectors** — KB docs bake Chinese `keywords` (新闻/资讯/时事)
@@ -240,7 +257,7 @@ $env:MEMORY_EMBEDDING_DEPLOYMENT = "text-embedding-3-small"
 
 # 4. Wire the agent and redeploy (these env vars are already in src/agent.yaml):
 #      MEMORY_STORE_NAME · MEMORY_EMBEDDING_DEPLOYMENT · MEMORY_DEFAULT_VIEWER
-azd deploy hisense-tv-assistant -e poc
+azd deploy hisense-tv-assistant-langgraph -e poc
 ```
 
 > **Scope format:** the memory `begin_update_memories` endpoint only allows `[A-Za-z0-9_-]` in a
@@ -283,7 +300,7 @@ azd ai agent optimize status <job-id> --watch -e poc   # watch candidates comple
 azd ai agent optimize apply  --candidate <id> -e poc   # apply locally for review
 ```
 
-Review the candidate, then `azd deploy hisense-tv-assistant -e poc`. Because `config.py`
+Review the candidate, then `azd deploy hisense-tv-assistant-langgraph -e poc`. Because `config.py`
 reads the instruction/model through `load_config()`, applying a candidate requires no code edit.
 
 ## Feature 4 — Evaluation & Monitoring
@@ -334,9 +351,66 @@ so a later session can personalize recommendations without re‑asking.
 > identity, so those identities need **Foundry User**, **Cognitive Services OpenAI User**, and
 > **Cognitive Services User** on the AI Services account (else memory ops return a model‑auth 401).
 
+## Microsoft Agent Framework variant (Agent Harness)
+
+`src-maf/` is a second **hosted** agent — `hisense-tv-assistant-maf` — that exposes the **exact same
+seven tools** as the LangGraph agent but is built on the **Microsoft Agent Framework (MAF)** and its
+**Agent Harness** (`create_harness_agent`) instead of a hand‑wired LangGraph loop. It speaks the same
+Foundry **`responses`** protocol and deploys the same way, so it is a like‑for‑like comparison of the
+two agent runtimes against one scenario and one tool set.
+
+**Why the harness.** `create_harness_agent` wraps the chat client in a managed agent loop that ships
+the "latest harness" capabilities out of the box, layered on top of the tools:
+
+* **TODO planning** — the model maintains an explicit task list for multi‑step requests.
+* **Plan / execute mode** — a built‑in mode provider separates planning from execution turns.
+* **Context compaction** — once history approaches `max_context_window_tokens` the harness summarizes
+  older turns instead of overflowing the window.
+* **Native GenAI tracing** — MAF is OpenTelemetry‑instrumented; Foundry Hosted Agents wire the OTel
+  exporters and inject `APPLICATIONINSIGHTS_CONNECTION_STRING` automatically, so **no tracing code**
+  lives in `main.py`. Set `ENABLE_SENSITIVE_DATA=true` (already in `agent.yaml`) to capture
+  prompt/tool payloads.
+
+**Tool parity.** The seven tool bodies are byte‑for‑byte the LangGraph versions; only the import and
+decorator change (`from langchain_core.tools import tool` → `from agent_framework import tool`, and
+`@tool` → `@tool(approval_mode="never_require")`). MAF's `@tool` natively maps bare‑string
+`Annotated[T, "desc"]` parameters to `Field(description=...)`, so the Chinese parameter descriptions
+and `Literal[...]` enums port verbatim.
+
+**Harness configuration** (`build_agent()` in `src-maf/main.py`):
+
+| Knob | Value | Why |
+|------|-------|-----|
+| `agent_instructions` | `compose_system_prompt(DEFAULT_INSTRUCTION)` | same Chinese persona + Foundry Skills injection as LangGraph, for behavioral parity |
+| `tools` | `ALL_TOOLS` (7) | identical tool set |
+| `max_context_window_tokens` / `max_output_tokens` | `128000` / `16384` | enables compaction headroom |
+| `history_provider` | `InMemoryHistoryProvider(load_messages=False)` | **required** — `ResponsesHostServer` rejects a history provider that loads messages (the hosting layer owns history) |
+| `disable_web_search` | `True` | the harness's generic web search would duplicate `webiq_search`; we keep the same seven tools |
+| `disable_memory` | `True` | viewer personalization goes through the Foundry **Memory** tools, not the harness file‑memory store |
+| `default_options` | `{"store": False}` | stateless responses; the hosting infra manages turn storage |
+
+> **Statelessness note.** The harness's in‑memory context providers (todo list, mode, compaction
+> buffer) live per‑process. In the hosted `responses` model each request can land on a fresh worker,
+> so harness‑internal context is **not** guaranteed to persist between requests — durable
+> personalization is intentionally delegated to the managed Memory store via the tools, not the
+> harness. This is expected for the POC.
+
+**Deploy / redeploy** (the service is already wired into `azure.yaml`):
+
+```powershell
+cd poc
+# first provision (creates infra + both agents):
+azd up -e poc
+# or redeploy just the MAF agent after a code change:
+azd deploy hisense-tv-assistant-maf -e poc
+```
+
+Run it locally exactly like the LangGraph host (`cd poc\src-maf`, install `requirements.txt`, copy
+`.env.example` to `.env`, `python main.py`).
+
 ## Prompt-agent variant (no-code managed tools)
 
-The headline demo above is a **hosted** LangGraph agent (`hisense-tv-assistant`) — a container with
+The headline demo above is a **hosted** LangGraph agent (`hisense-tv-assistant-langgraph`) — a container with
 custom Python, which is the right shape for complex orchestration. But the *easiest* way to show an
 enterprise user how Foundry's native capabilities snap onto an agent is a **prompt agent**: just an
 LLM deployment plus a list of Foundry-managed tools, **no container and no code**. The scripts under
@@ -389,7 +463,7 @@ see the platform-behavior note immediately below.
 > tools and the model decides which to invoke — so this is a runtime characteristic of the **preview**
 > Memory tool, not a documented limit. Memory **does** coexist with `MCPTool` (WebIQ), and AI Search
 > coexists with WebIQ; only the **Memory + AI-Search** pair collides. To get **all three actually
-> working together**, use either (a) the **hosted LangGraph agent** (`hisense-tv-assistant`), which
+> working together**, use either (a) the **hosted LangGraph agent** (`hisense-tv-assistant-langgraph`), which
 > orchestrates AI Search + WebIQ + Memory in code with no such constraint, or (b) the **two-agent split**
 > — keep program search on `hisense-program-library` and personalization/news on the combined agent.
 

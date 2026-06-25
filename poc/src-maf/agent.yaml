@@ -1,18 +1,18 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/microsoft/AgentSchema/refs/heads/main/schemas/v1.0/ContainerAgent.yaml
 
 kind: hosted
-name: hisense-tv-assistant-langgraph
-description: |
-    LangGraph hosted agent for the Hisense TV remote-key sports assistant. Demonstrates Microsoft Foundry as a production agent platform: Foundry IQ knowledge retrieval over the EPG/titles program library, Web IQ for live web/news/image grounding, Agent Optimizer-ready instruction/model config, and GenAI OpenTelemetry tracing into Application Insights for evaluation & monitoring.
+name: hisense-tv-assistant-maf
+description: |-
+    Microsoft Agent Framework (MAF) hosted agent for the Hisense TV remote-key sports assistant, built with the Agent Harness (create_harness_agent): agentic todo planning, plan/execute modes, context compaction, Foundry Skills, and native GenAI OpenTelemetry tracing. Reuses the same seven tools as the LangGraph twin — Foundry IQ program-library retrieval, Web IQ grounding, EPG schedule / live-score / tune-to-channel, and cross-session viewer memory.
 metadata:
     tags:
         - AI Agent Hosting
         - Responses Protocol
-        - LangGraph
-        - LangChain
+        - Microsoft Agent Framework
+        - Agent Harness
         - Foundry IQ
         - Web IQ
-        - Agent Optimizer
+        - Foundry Memory
         - Observability
         - Python
 protocols:
@@ -40,10 +40,19 @@ environment_variables:
       value: 'text-embedding-3-small'
     - name: MEMORY_DEFAULT_VIEWER
       value: 'demo-viewer'
+    # MAF is natively instrumented; Foundry Hosted Agents manage the OTel
+    # exporters and inject APPLICATIONINSIGHTS_CONNECTION_STRING on deploy.
+    # ENABLE_SENSITIVE_DATA also records prompts/tool args into the traces.
+    - name: ENABLE_SENSITIVE_DATA
+      value: "true"
     - name: OTEL_AUTO_CONFIGURE_AZURE_MONITOR
       value: "true"
     - name: AZURE_TRACING_GEN_AI_CONTENT_RECORDING_ENABLED
       value: "true"
+    - name: SKILLS_SOURCE
+      value: "auto"
+    - name: SKILLS_TOOLBOX_NAME
+      value: "hisense-tv-skills"
 code_configuration:
     runtime: python_3_13
     entry_point: main.py

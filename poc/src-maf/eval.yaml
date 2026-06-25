@@ -1,0 +1,20 @@
+name: hisense-tv-assistant-maf-eval
+agent:
+    name: hisense-tv-assistant-maf
+    kind: hosted
+    config: .agent_configs\baseline\metadata.yaml
+dataset:
+    name: hisense-tv-assistant-maf-eval
+    version: "1.0"
+    local_uri: datasets\hisense-tv-assistant-maf-eval
+evaluators:
+    - builtin.relevance
+    - builtin.task_adherence
+    - builtin.intent_resolution
+    - builtin.tool_call_accuracy
+    - name: hisense-tv-assistant-maf-eval
+      version: "1"
+      local_uri: evaluators\hisense-tv-assistant-maf-eval\rubric_dimensions.json
+options:
+    eval_model: gpt-4.1
+max_samples: 15

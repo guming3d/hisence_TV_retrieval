@@ -1,0 +1,38 @@
+[
+  {
+    "id": "correct_tool_selection",
+    "description": "The agent selects the most appropriate tool for the user's sports query, based on available data sources and the explicit query intent.",
+    "weight": 10
+  },
+  {
+    "id": "accurate_parameterization",
+    "description": "Each tool call uses parameters (such as sport, team, competition, date, or channel) that accurately reflect the user's request and context.",
+    "weight": 6
+  },
+  {
+    "id": "session_state_management",
+    "description": "The agent correctly manages session state by remembering and recalling user preferences across turns and sessions.",
+    "weight": 5
+  },
+  {
+    "id": "data_conflict_resolution",
+    "description": "When multiple data sources provide conflicting information, the agent resolves the conflict and presents consistent information in its response.",
+    "weight": 4
+  },
+  {
+    "id": "explicit_error_handling",
+    "description": "The agent provides a clear error message or fallback response when a query is unsupported, data is unavailable, or a tool invocation fails.",
+    "weight": 3
+  },
+  {
+    "id": "terminal_outcome_relevance",
+    "description": "The agent's final output is relevant to the user's query, such as providing a correct answer, appropriate recommendation, or valid channel tuning.",
+    "weight": 2
+  },
+  {
+    "id": "general_quality",
+    "description": "Other important quality factors not covered by listed criteria.",
+    "weight": 5,
+    "always_applicable": true
+  }
+]

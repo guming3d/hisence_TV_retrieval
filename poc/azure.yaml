@@ -4,8 +4,26 @@ name: hisense-tv-assistant-poc
 metadata:
     template: hisense-tv-assistant-poc@0.1
 services:
-    hisense-tv-assistant:
+    hisense-tv-assistant-langgraph:
         project: ./src
+        host: azure.ai.agent
+        language: python
+        config:
+            container:
+                resources:
+                    cpu: "0.5"
+                    memory: 1Gi
+            deployments:
+                - model:
+                    format: OpenAI
+                    name: gpt-4.1-mini
+                    version: "2025-04-14"
+                  name: gpt-4.1-mini
+                  sku:
+                    capacity: 2500
+                    name: GlobalStandard
+    hisense-tv-assistant-maf:
+        project: ./src-maf
         host: azure.ai.agent
         language: python
         config:
