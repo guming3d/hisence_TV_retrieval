@@ -2,7 +2,7 @@
 
 Why this exists
 ---------------
-The main demo agent ``hisense-tv-assistant`` is a **hosted** LangGraph agent
+The main demo agent ``hisense-tv-assistant-langgraph`` is a **hosted** LangGraph agent
 (container + custom Python). That is the right shape for complex orchestration,
 but it is *not* the easiest way to show an enterprise user how Foundry's native,
 managed capabilities plug into an agent. A **prompt agent** is just an LLM + a

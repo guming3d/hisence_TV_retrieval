@@ -166,6 +166,10 @@ class Settings:
     memory_max_recall: int
     memory_dir: Path
 
+    # Foundry Skills (preview) — runtime delivery source
+    skills_source: str
+    skills_toolbox_name: str | None
+
     # Behaviour
     offline: bool
     kb_dir: Path
@@ -209,6 +213,8 @@ def get_settings() -> Settings:
         memory_default_viewer=os.environ.get("MEMORY_DEFAULT_VIEWER", "demo-viewer"),
         memory_max_recall=int(os.environ.get("MEMORY_MAX_RECALL", "5") or 5),
         memory_dir=MEMORY_DIR,
+        skills_source=(os.environ.get("SKILLS_SOURCE", "auto") or "auto").strip().lower(),
+        skills_toolbox_name=os.environ.get("SKILLS_TOOLBOX_NAME", "hisense-tv-skills") or None,
         offline=offline,
         kb_dir=KB_DIR,
     )

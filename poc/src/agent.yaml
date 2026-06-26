@@ -44,6 +44,10 @@ environment_variables:
       value: "true"
     - name: AZURE_TRACING_GEN_AI_CONTENT_RECORDING_ENABLED
       value: "true"
+    - name: SKILLS_SOURCE
+      value: "auto"
+    - name: SKILLS_TOOLBOX_NAME
+      value: "hisense-tv-skills"
 code_configuration:
     runtime: python_3_13
     entry_point: main.py

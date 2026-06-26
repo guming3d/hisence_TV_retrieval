@@ -65,6 +65,8 @@ def build_graph() -> Any:
     """
     from langchain.agents import create_agent
 
+    from skills_loader import compose_system_prompt
+
     cfg = get_agent_config()
     model = build_model()
 
@@ -76,4 +78,9 @@ def build_graph() -> Any:
         except Exception as exc:  # noqa: BLE001 — tool patching is best-effort
             print(f"[optimizer] apply_tool_descriptions skipped: {exc}")
 
-    return create_agent(model, tools=tools, system_prompt=cfg.instruction)
+    # Foundry Skills (preview) — direct injection: append each bundled SKILL.md
+    # body (published to the central store via scripts/manage_skills.py) to the
+    # system prompt. See src/skills_loader.py.
+    system_prompt = compose_system_prompt(cfg.instruction)
+
+    return create_agent(model, tools=tools, system_prompt=system_prompt)
